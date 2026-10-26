@@ -1,0 +1,356 @@
+
+> trading-decision-sop@1.0.0 test
+> node --experimental-strip-types --test tests/*.test.mjs
+
+TAP version 13
+# Subtest: A1 普通操作一次 USER_ACTION，多条自动路由不虚增点击
+ok 1 - A1 普通操作一次 USER_ACTION，多条自动路由不虚增点击
+  ---
+  duration_ms: 1.745333
+  type: 'test'
+  ...
+# Subtest: A2 W 等待完全排除主动耗时；后台和闲置不计操作
+ok 2 - A2 W 等待完全排除主动耗时；后台和闲置不计操作
+  ---
+  duration_ms: 0.330583
+  type: 'test'
+  ...
+# Subtest: A3 R02 合法上游更新不算可疑重复判断
+ok 3 - A3 R02 合法上游更新不算可疑重复判断
+  ---
+  duration_ms: 0.763417
+  type: 'test'
+  ...
+# Subtest: A4 同任务同依赖版本重复主动返回有证据可查，标记人工复核
+ok 4 - A4 同任务同依赖版本重复主动返回有证据可查，标记人工复核
+  ---
+  duration_ms: 0.156042
+  type: 'test'
+  ...
+# Subtest: A5 Bias 阻断 P5 记录原因，不推断无记录的行情事件
+ok 5 - A5 Bias 阻断 P5 记录原因，不推断无记录的行情事件
+  ---
+  duration_ms: 0.259958
+  type: 'test'
+  ...
+# Subtest: A6 各阶段均值/中位、任务点击、等待、U0-U2 可由原始事件复算
+ok 6 - A6 各阶段均值/中位、任务点击、等待、U0-U2 可由原始事件复算
+  ---
+  duration_ms: 0.256042
+  type: 'test'
+  ...
+# Subtest: A7 日期/品种筛选不混淆，不完整任务不进入完成均值
+ok 7 - A7 日期/品种筛选不混淆，不完整任务不进入完成均值
+  ---
+  duration_ms: 0.068792
+  type: 'test'
+  ...
+# Subtest: A8 日志容量受限，裁剪可计数，CSV 包含原始数据并正确转义
+ok 8 - A8 日志容量受限，裁剪可计数，CSV 包含原始数据并正确转义
+  ---
+  duration_ms: 16.956333
+  type: 'test'
+  ...
+# Subtest: A9 不读取用户备注、价格和订单号，原始事件只含允许字段
+ok 9 - A9 不读取用户备注、价格和订单号，原始事件只含允许字段
+  ---
+  duration_ms: 0.377292
+  type: 'test'
+  ...
+# Subtest: A10 已结束任务的后续点击不污染完成任务指标
+ok 10 - A10 已结束任务的后续点击不污染完成任务指标
+  ---
+  duration_ms: 0.333833
+  type: 'test'
+  ...
+# Subtest: B1 Bundle 包含原始日志/生命周期/状态变更/路由/SOP与规则快照，可精确重算汇总
+ok 11 - B1 Bundle 包含原始日志/生命周期/状态变更/路由/SOP与规则快照，可精确重算汇总
+  ---
+  duration_ms: 4.413916
+  type: 'test'
+  ...
+# Subtest: B2 每次上游返回关联已记录变化ID，可由原始事件逐项核对
+ok 12 - B2 每次上游返回关联已记录变化ID，可由原始事件逐项核对
+  ---
+  duration_ms: 0.555167
+  type: 'test'
+  ...
+# Subtest: B3 R02 的已确认市场事件成为合法上游更新证据
+ok 13 - B3 R02 的已确认市场事件成为合法上游更新证据
+  ---
+  duration_ms: 0.402583
+  type: 'test'
+  ...
+# Subtest: B4 不完整/旧窗口不能伪造状态变化，明确证据不足
+ok 14 - B4 不完整/旧窗口不能伪造状态变化，明确证据不足
+  ---
+  duration_ms: 0.561291
+  type: 'test'
+  ...
+# Subtest: B5 Bundle 筛选后仍能精确重算，不需要隐藏的全量状态
+ok 15 - B5 Bundle 筛选后仍能精确重算，不需要隐藏的全量状态
+  ---
+  duration_ms: 0.86375
+  type: 'test'
+  ...
+# Subtest: B6 脱敏状态白名单排除原逻辑点备注、位置名称和未知字段
+ok 16 - B6 脱敏状态白名单排除原逻辑点备注、位置名称和未知字段
+  ---
+  duration_ms: 0.206167
+  type: 'test'
+  ...
+# Subtest: 20/1 localStorage 与 JSON 往返同时保留流程和事件，键完全隔离
+ok 17 - 20/1 localStorage 与 JSON 往返同时保留流程和事件，键完全隔离
+  ---
+  duration_ms: 3.107333
+  type: 'test'
+  ...
+# Subtest: 20/2 损坏主数据保留原文并从备用恢复
+ok 18 - 20/2 损坏主数据保留原文并从备用恢复
+  ---
+  duration_ms: 0.631916
+  type: 'test'
+  ...
+# Subtest: 20/3 主备均坏进入 P0，未来版本和不一致数据拒绝导入
+ok 19 - 20/3 主备均坏进入 P0，未来版本和不一致数据拒绝导入
+  ---
+  duration_ms: 0.162333
+  type: 'test'
+  ...
+# Subtest: 20/4 有真实敞口禁止导入覆盖，导入持仓强制核对
+ok 20 - 20/4 有真实敞口禁止导入覆盖，导入持仓强制核对
+  ---
+  duration_ms: 0.268416
+  type: 'test'
+  ...
+# Subtest: 18/2 跨日或长时间离开提示快照核对，普通 P3 原样恢复
+ok 21 - 18/2 跨日或长时间离开提示快照核对，普通 P3 原样恢复
+  ---
+  duration_ms: 0.094834
+  type: 'test'
+  ...
+# Subtest: 20/5 非法候选引用、日志耗时及序列拒绝导入
+ok 22 - 20/5 非法候选引用、日志耗时及序列拒绝导入
+  ---
+  duration_ms: 0.105459
+  type: 'test'
+  ...
+# Subtest: 20/6 存储不可写时返回可操作恢复页
+ok 23 - 20/6 存储不可写时返回可操作恢复页
+  ---
+  duration_ms: 0.101334
+  type: 'test'
+  ...
+# Subtest: 20/7 语法合法但未取得权限的 P5 快照拒绝导入
+ok 24 - 20/7 语法合法但未取得权限的 P5 快照拒绝导入
+  ---
+  duration_ms: 0.090083
+  type: 'test'
+  ...
+# Subtest: 20/8 大日志保存前压缩保留窗口并可复核裁剪数
+ok 25 - 20/8 大日志保存前压缩保留窗口并可复核裁剪数
+  ---
+  duration_ms: 28.772834
+  type: 'test'
+  ...
+# Subtest: 01 首次打开 P0，事件快捷入口也不能绕过平台核对
+ok 26 - 01 首次打开 P0，事件快捷入口也不能绕过平台核对
+  ---
+  duration_ms: 0.96275
+  type: 'test'
+  ...
+# Subtest: 02 有效 P3 JSON 快照刷新恢复
+ok 27 - 02 有效 P3 JSON 快照刷新恢复
+  ---
+  duration_ms: 2.589208
+  type: 'test'
+  ...
+# Subtest: 03 多头 Bias 多头 PB 正常到 P5，必须确认风险和逻辑点
+ok 28 - 03 多头 Bias 多头 PB 正常到 P5，必须确认风险和逻辑点
+  ---
+  duration_ms: 0.405125
+  type: 'test'
+  ...
+# Subtest: 04 多头 Bias 下空头 Setup 不能绕过 P5
+ok 29 - 04 多头 Bias 下空头 Setup 不能绕过 P5
+  ---
+  duration_ms: 0.122208
+  type: 'test'
+  ...
+# Subtest: 05 两类中性分别需要当前候选具体方向权限
+ok 30 - 05 两类中性分别需要当前候选具体方向权限
+  ---
+  duration_ms: 0.203292
+  type: 'test'
+  ...
+# Subtest: 06 多候选独立，位置失效仅清理自身
+ok 31 - 06 多候选独立，位置失效仅清理自身
+  ---
+  duration_ms: 0.134583
+  type: 'test'
+  ...
+# Subtest: 07 R01 到位不会自动确认 Setup
+ok 32 - 07 R01 到位不会自动确认 Setup
+  ---
+  duration_ms: 0.122041
+  type: 'test'
+  ...
+# Subtest: 08 Setup 成立不会假装成交
+ok 33 - 08 Setup 成立不会假装成交
+  ---
+  duration_ms: 0.072959
+  type: 'test'
+  ...
+# Subtest: 09 未成交理由失效必须撤单核对，不能静默抹去订单
+ok 34 - 09 未成交理由失效必须撤单核对，不能静默抹去订单
+  ---
+  duration_ms: 0.284791
+  type: 'test'
+  ...
+# Subtest: 10 部分成交理由失效保留真实持仓，剩余撤单
+ok 35 - 10 部分成交理由失效保留真实持仓，剩余撤单
+  ---
+  duration_ms: 0.290375
+  type: 'test'
+  ...
+# Subtest: 11 人工确认触及原失效点后仍有持仓，必须人工确认实际平仓
+ok 36 - 11 人工确认触及原失效点后仍有持仓，必须人工确认实际平仓
+  ---
+  duration_ms: 0.142167
+  type: 'test'
+  ...
+# Subtest: 12 持仓 R02 更新后返回 P6，原失效点不变
+ok 37 - 12 持仓 R02 更新后返回 P6，原失效点不变
+  ---
+  duration_ms: 0.874042
+  type: 'test'
+  ...
+# Subtest: 13 持仓 R03 优先风险，不能去找新机会
+ok 38 - 13 持仓 R03 优先风险，不能去找新机会
+  ---
+  duration_ms: 0.093625
+  type: 'test'
+  ...
+# Subtest: 14 R04 不改 Bias，不直接入场，不授予反向权限
+ok 39 - 14 R04 不改 Bias，不直接入场，不授予反向权限
+  ---
+  duration_ms: 3.572125
+  type: 'test'
+  ...
+# Subtest: 15 R02 恢复有效原任务和 W 等待
+ok 40 - 15 R02 恢复有效原任务和 W 等待
+  ---
+  duration_ms: 0.362583
+  type: 'test'
+  ...
+# Subtest: 16 中断任务依赖失效后不得恢复旧 Setup
+ok 41 - 16 中断任务依赖失效后不得恢复旧 Setup
+  ---
+  duration_ms: 0.378416
+  type: 'test'
+  ...
+# Subtest: 17 正式 Bias 变化清理冲突计划，不清空其他候选
+ok 42 - 17 正式 Bias 变化清理冲突计划，不清空其他候选
+  ---
+  duration_ms: 0.170041
+  type: 'test'
+  ...
+# Subtest: 18 U2 保留真实部分成交和不可放宽的原逻辑点
+ok 43 - 18 U2 保留真实部分成交和不可放宽的原逻辑点
+  ---
+  duration_ms: 0.196834
+  type: 'test'
+  ...
+# Subtest: 19 品种间数据独立
+ok 44 - 19 品种间数据独立
+  ---
+  duration_ms: 0.107583
+  type: 'test'
+  ...
+# Subtest: 21 R03 空仓不产生新位置准入
+ok 45 - 21 R03 空仓不产生新位置准入
+  ---
+  duration_ms: 0.093166
+  type: 'test'
+  ...
+# Subtest: 22 撤单期间实际成交仍允许记录，进入风险核对
+ok 46 - 22 撤单期间实际成交仍允许记录，进入风险核对
+  ---
+  duration_ms: 0.095667
+  type: 'test'
+  ...
+# Subtest: 23 原失效点不可在持仓或挂单后修改
+ok 47 - 23 原失效点不可在持仓或挂单后修改
+  ---
+  duration_ms: 0.087708
+  type: 'test'
+  ...
+# Subtest: 24 无仓不能跳到 P6，Setup 失效不能再提交旧计划
+ok 48 - 24 无仓不能跳到 P6，Setup 失效不能再提交旧计划
+  ---
+  duration_ms: 0.083292
+  type: 'test'
+  ...
+# Subtest: 25 已平仓但还有挂单，继续要求撤单，不能视作全空
+ok 49 - 25 已平仓但还有挂单，继续要求撤单，不能视作全空
+  ---
+  duration_ms: 0.080083
+  type: 'test'
+  ...
+# Subtest: 26 多种事件序列不自动产生持仓，不死循环
+ok 50 - 26 多种事件序列不自动产生持仓，不死循环
+  ---
+  duration_ms: 0.934959
+  type: 'test'
+  ...
+# Subtest: 27 主动修改结构必须清理旧 Setup 与风险确认
+ok 51 - 27 主动修改结构必须清理旧 Setup 与风险确认
+  ---
+  duration_ms: 0.109458
+  type: 'test'
+  ...
+# Subtest: 28 R02 更新期间不可切换/新建候选，依赖失效立即注销中断任务
+ok 52 - 28 R02 更新期间不可切换/新建候选，依赖失效立即注销中断任务
+  ---
+  duration_ms: 0.071958
+  type: 'test'
+  ...
+# Subtest: 29 R02 中修改母结构方向属于依赖变化，不能恢复旧 Setup
+ok 53 - 29 R02 中修改母结构方向属于依赖变化，不能恢复旧 Setup
+  ---
+  duration_ms: 0.08
+  type: 'test'
+  ...
+# Subtest: 30 R01 不得从未重新确认结构的 P2 进入 P4
+ok 54 - 30 R01 不得从未重新确认结构的 P2 进入 P4
+  ---
+  duration_ms: 0.085958
+  type: 'test'
+  ...
+# Subtest: 31 持仓 R02 被 R03 风险中断后不遗留无法完成的悬挂任务
+ok 55 - 31 持仓 R02 被 R03 风险中断后不遗留无法完成的悬挂任务
+  ---
+  duration_ms: 0.090667
+  type: 'test'
+  ...
+# Subtest: 32 P0 恢复已有持仓后可继续补录剩余挂单
+ok 56 - 32 P0 恢复已有持仓后可继续补录剩余挂单
+  ---
+  duration_ms: 0.055916
+  type: 'test'
+  ...
+# Subtest: 33 多候选切换后保留各自完成阶段的重访证据
+ok 57 - 33 多候选切换后保留各自完成阶段的重访证据
+  ---
+  duration_ms: 0.107875
+  type: 'test'
+  ...
+1..57
+# tests 57
+# suites 0
+# pass 57
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 140.296083

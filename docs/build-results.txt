@@ -1,0 +1,13 @@
+
+> trading-decision-sop@1.0.0 build
+> tsc --noEmit && vite build
+
+vite v7.3.7 building client environment for production...
+transforming...
+✓ 8 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  0.61 kB │ gzip:  0.44 kB
+dist/assets/index-BQuCDV-t.css  12.81 kB │ gzip:  3.22 kB
+dist/assets/index-CVqft0sF.js   56.80 kB │ gzip: 20.28 kB
+✓ built in 91ms

@@ -1,0 +1,118 @@
+{
+  "matchesExportedSummary": true,
+  "summary": {
+    "retained": 237,
+    "dropped": 0,
+    "taskCount": 2,
+    "completedTasks": [
+      {
+        "id": "task-GC-1792997754167-0",
+        "clicks": 17,
+        "activeMs": 62000
+      }
+    ],
+    "incompleteTasks": 2,
+    "averageClicks": 17,
+    "averageActiveMs": 62000,
+    "medianActiveMs": 62000,
+    "totalClicks": 31,
+    "userReturns": 0,
+    "marketUpdates": 2,
+    "suspiciousReturns": 0,
+    "reviewLabel": "待人工复核",
+    "blocked": 0,
+    "exceptions": 0,
+    "missingPrerequisites": 0,
+    "updates": {
+      "U0": 0,
+      "U1": 5,
+      "U2": 0
+    },
+    "stages": [
+      {
+        "stage": 0,
+        "entries": 3,
+        "exits": 2,
+        "revisits": 0,
+        "activeMs": 45366,
+        "waitMs": 0,
+        "idleMs": 5397,
+        "averageMs": 15122,
+        "medianMs": 11041,
+        "samples": 3
+      },
+      {
+        "stage": 1,
+        "entries": 1,
+        "exits": 1,
+        "revisits": 0,
+        "activeMs": 16789,
+        "waitMs": 0,
+        "idleMs": 0,
+        "averageMs": 16789,
+        "medianMs": 16789,
+        "samples": 1
+      },
+      {
+        "stage": 2,
+        "entries": 3,
+        "exits": 3,
+        "revisits": 0,
+        "activeMs": 18226,
+        "waitMs": 0,
+        "idleMs": 0,
+        "averageMs": 6075.333333333333,
+        "medianMs": 8347,
+        "samples": 3
+      },
+      {
+        "stage": 3,
+        "entries": 3,
+        "exits": 2,
+        "revisits": 1,
+        "activeMs": 52785,
+        "waitMs": 0,
+        "idleMs": 64821,
+        "averageMs": 10557,
+        "medianMs": 7275,
+        "samples": 5
+      },
+      {
+        "stage": 4,
+        "entries": 19,
+        "exits": 3,
+        "revisits": 0,
+        "activeMs": 175723,
+        "waitMs": 114258,
+        "idleMs": 314468,
+        "averageMs": 14643.583333333334,
+        "medianMs": 224.5,
+        "samples": 12
+      },
+      {
+        "stage": 5,
+        "entries": 1,
+        "exits": 1,
+        "revisits": 0,
+        "activeMs": 1200,
+        "waitMs": 0,
+        "idleMs": 0,
+        "averageMs": 1200,
+        "medianMs": 1200,
+        "samples": 1
+      },
+      {
+        "stage": 6,
+        "entries": 2,
+        "exits": 1,
+        "revisits": 0,
+        "activeMs": 14496,
+        "waitMs": 0,
+        "idleMs": 0,
+        "averageMs": 7248,
+        "medianMs": 7248,
+        "samples": 2
+      }
+    ]
+  }
+}

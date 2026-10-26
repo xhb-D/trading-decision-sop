@@ -1,0 +1,45 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {initialWorkflow,reduceWorkflow,activeCandidate,emptyExecution} from '../src/engine.ts';
+let tick=1000;
+const apply=(w,type,extra={})=>reduceWorkflow(w,{type,...extra},++tick).workflow;
+function context(bias='正式多头') {
+ let w=initialWorkflow('GC',1);
+ for(const [type,extra] of [['RECONCILE',{}],['SET_BIAS',{value:bias}],['BIAS_DONE',{}],['SET_STRUCTURE',{field:'direction',value:'多头'}],['SET_STRUCTURE',{field:'phase',value:'回调'}],['STRUCTURE_DONE',{}]])w=apply(w,type,extra);
+ return w;
+}
+function candidate(bias='正式多头',direction='多头') {return apply(context(bias),'ADD_CANDIDATE',{direction,setup:'PB'});}
+function ready() {let w=candidate();w=apply(w,'R01');w=apply(w,'CONFIRM_SETUP');w=apply(w,'CONFIRM_RISK');return apply(w,'CONFIRM_POINT',{value:'原始失效点'});}
+
+test('01 首次打开 P0，事件快捷入口也不能绕过平台核对',()=>{const w=initialWorkflow('GC',1);assert.equal(w.stage,0);assert.equal(w.candidates.length,0);assert.equal(reduceWorkflow(w,{type:'R02'}).blocked,true);assert.equal(apply(w,'RECONCILE').stage,1);});
+test('02 有效 P3 JSON 快照刷新恢复',()=>{let w=candidate();w=JSON.parse(JSON.stringify(w));assert.equal(w.stage,3);assert.equal(activeCandidate(w).valid,true);});
+test('03 多头 Bias 多头 PB 正常到 P5，必须确认风险和逻辑点',()=>{let w=candidate();w=apply(w,'R01');assert.equal(w.stage,4);w=apply(w,'CONFIRM_SETUP');assert.equal(w.stage,5);assert.equal(reduceWorkflow(w,{type:'PLACE_PENDING'}).blocked,true);w=apply(w,'CONFIRM_RISK');w=apply(w,'CONFIRM_POINT');assert.equal(apply(w,'PLACE_PENDING').execution.order,'pending');});
+test('04 多头 Bias 下空头 Setup 不能绕过 P5',()=>{let w=candidate('正式多头','空头');assert.equal(reduceWorkflow(w,{type:'R01'}).blocked,true);assert.equal(reduceWorkflow(w,{type:'NAVIGATE',stage:5}).blocked,true);assert.equal(reduceWorkflow(w,{type:'CONFIRM_SETUP'}).blocked,true);});
+test('05 两类中性分别需要当前候选具体方向权限',()=>{for(const bias of ['平衡中性','待定中性']){let w=candidate(bias,'空头');assert.equal(reduceWorkflow(w,{type:'R01'}).blocked,true);w=apply(w,'GRANT_DIRECTION');w=apply(w,'R01');assert.equal(apply(w,'CONFIRM_SETUP').stage,5);}});
+test('06 多候选独立，位置失效仅清理自身',()=>{let w=candidate();const first=w.activeId;w=apply(w,'ADD_CANDIDATE',{value:'另一候选'});const second=w.activeId;w=apply(w,'INVALIDATE_LOCATION',{id:first});assert.equal(w.candidates.find(c=>c.id===first).valid,false);assert.equal(w.candidates.find(c=>c.id===second).valid,true);assert.equal(w.activeId,second);});
+test('07 R01 到位不会自动确认 Setup',()=>{const w=apply(candidate(),'R01');assert.equal(w.stage,4);assert.equal(activeCandidate(w).confirmed,false);assert.equal(w.execution.position,false);});
+test('08 Setup 成立不会假装成交',()=>{const w=apply(apply(candidate(),'R01'),'CONFIRM_SETUP');assert.equal(w.stage,5);assert.equal(w.execution.order,'none');assert.equal(w.execution.position,false);});
+test('09 未成交理由失效必须撤单核对，不能静默抹去订单',()=>{let w=apply(ready(),'PLACE_PENDING');w=apply(w,'REASON_INVALID');assert.equal(w.execution.order,'cancelRequested');assert.equal(w.stage,5);w=apply(w,'CANCEL_CONFIRMED');assert.equal(w.execution.order,'none');assert.equal(w.stage,3);});
+test('10 部分成交理由失效保留真实持仓，剩余撤单',()=>{let w=apply(ready(),'PARTIAL_FILL');assert.equal(w.execution.position,true);assert.equal(w.execution.order,'pending');w=apply(w,'REASON_INVALID');assert.equal(w.stage,6);assert.equal(w.execution.order,'cancelRequested');w=apply(w,'CANCEL_CONFIRMED');assert.equal(w.execution.position,true);assert.equal(w.execution.order,'none');assert.equal(w.stage,6);});
+test('11 人工确认触及原失效点后仍有持仓，必须人工确认实际平仓',()=>{let w=apply(ready(),'FILL');w=apply(w,'POINT_TOUCHED');assert.equal(w.execution.position,true);assert.equal(w.execution.exitRequired,true);assert.equal(w.stage,6);assert.equal(apply(w,'EXIT_CONFIRMED').execution.position,false);});
+test('12 持仓 R02 更新后返回 P6，原失效点不变',()=>{let w=apply(ready(),'FILL');const original=structuredClone(w.execution);w=apply(w,'R02');assert.equal(w.stage,2);w=apply(w,'SET_STRUCTURE',{field:'timeframe',value:'1H'});w=apply(w,'STRUCTURE_DONE');assert.equal(w.stage,6);assert.deepEqual(w.execution,original);});
+test('13 持仓 R03 优先风险，不能去找新机会',()=>{let w=apply(ready(),'FILL');w=apply(w,'R03');assert.equal(w.stage,6);assert.equal(w.execution.riskReview,true);assert.equal(reduceWorkflow(w,{type:'ADD_CANDIDATE'}).blocked,true);});
+test('14 R04 不改 Bias，不直接入场，不授予反向权限',()=>{let w=ready();w=apply(w,'R04');assert.equal(w.bias,'正式多头');assert.equal(w.stage,3);assert.equal(activeCandidate(w).confirmed,false);assert.equal(activeCandidate(w).arrived,false);assert.equal(w.execution.invalidationConfirmed,false);});
+test('15 R02 恢复有效原任务和 W 等待',()=>{let w=apply(apply(candidate(),'R01'),'WAIT');w=apply(w,'R02');assert.equal(w.stage,2);const r=reduceWorkflow(w,{type:'STRUCTURE_DONE'},++tick);assert.equal(r.workflow.stage,4);assert.equal(r.workflow.waiting,true);assert(r.events.some(e=>e.type==='TASK_RESUMED'));});
+test('16 中断任务依赖失效后不得恢复旧 Setup',()=>{let w=apply(ready(),'R02');w=apply(w,'INVALIDATE_LOCATION');w=apply(w,'STRUCTURE_DONE');assert.equal(w.stage,3);assert.equal(w.suspension,null);assert.equal(activeCandidate(w).confirmed,false);});
+test('17 正式 Bias 变化清理冲突计划，不清空其他候选',()=>{let w=ready();w=apply(w,'SET_BIAS',{value:'正式空头'});assert.equal(w.stage,3);assert.equal(w.candidates.length,1);assert.equal(activeCandidate(w).confirmed,false);assert.equal(w.execution.riskConfirmed,false);assert.equal(reduceWorkflow(w,{type:'NAVIGATE',stage:5}).blocked,true);});
+test('18 U2 保留真实部分成交和不可放宽的原逻辑点',()=>{let w=apply(ready(),'PARTIAL_FILL');w=apply(w,'U2');assert.equal(w.stage,0);assert.equal(w.execution.position,true);assert.equal(w.execution.order,'cancelRequested');assert.equal(w.execution.originalPoint,'原始失效点');assert.equal(w.bias,'未裁决');assert.equal(apply(w,'RECONCILE').stage,6);});
+test('19 品种间数据独立',()=>{const gc=apply(ready(),'FILL');const cl=initialWorkflow('CL');assert.equal(cl.execution.position,false);assert.equal(cl.bias,'未裁决');assert.equal(gc.symbol,'GC');});
+test('21 R03 空仓不产生新位置准入',()=>{let w=apply(context(),'R03');assert.equal(w.stage,3);assert.equal(w.candidates.length,0);assert.equal(reduceWorkflow(w,{type:'CONFIRM_SETUP'}).blocked,true);});
+test('22 撤单期间实际成交仍允许记录，进入风险核对',()=>{let w=apply(apply(ready(),'PLACE_PENDING'),'REQUEST_CANCEL');w=apply(w,'FILL');assert.equal(w.execution.position,true);assert.equal(w.execution.order,'none');assert.equal(w.execution.riskReview,true);});
+test('23 原失效点不可在持仓或挂单后修改',()=>{let w=apply(ready(),'FILL');const r=reduceWorkflow(w,{type:'CONFIRM_POINT',value:'放宽'});assert.equal(r.blocked,true);assert.equal(r.workflow.execution.originalPoint,'原始失效点');});
+test('24 无仓不能跳到 P6，Setup 失效不能再提交旧计划',()=>{let w=ready();assert.equal(reduceWorkflow(w,{type:'NAVIGATE',stage:6}).blocked,true);w=apply(w,'INVALIDATE_SETUP');assert.equal(reduceWorkflow(w,{type:'PLACE_PENDING'}).blocked,true);});
+test('25 已平仓但还有挂单，继续要求撤单，不能视作全空',()=>{let w=apply(ready(),'PARTIAL_FILL');w=apply(w,'EXIT_CONFIRMED');assert.equal(w.execution.order,'cancelRequested');assert.equal(w.stage,5);});
+test('26 多种事件序列不自动产生持仓，不死循环',()=>{let w=candidate();for(let i=0;i<200;i++){w=apply(w,['U0','R02','STRUCTURE_DONE','R03','WAIT','WAKE'][i%6]);assert.equal(w.execution.position,false);assert(w.stage>=0&&w.stage<=6);} });
+test('27 主动修改结构必须清理旧 Setup 与风险确认',()=>{let w=ready();w=apply(w,'NAVIGATE',{stage:2});w=apply(w,'SET_STRUCTURE',{field:'phase',value:'转折观察'});assert.equal(activeCandidate(w).confirmed,false);assert.equal(w.execution.invalidationConfirmed,false);w=apply(w,'STRUCTURE_DONE');assert.equal(reduceWorkflow(w,{type:'NAVIGATE',stage:5}).blocked,true);});
+test('28 R02 更新期间不可切换/新建候选，依赖失效立即注销中断任务',()=>{let w=candidate();w=apply(w,'R02');assert.equal(reduceWorkflow(w,{type:'ADD_CANDIDATE'}).blocked,true);w=apply(w,'INVALIDATE_LOCATION');assert.equal(w.suspension,null);assert.equal(w.stage,3);});
+test('29 R02 中修改母结构方向属于依赖变化，不能恢复旧 Setup',()=>{let w=apply(ready(),'R02');w=apply(w,'SET_STRUCTURE',{field:'direction',value:'空头'});assert.equal(w.suspension,null);assert.equal(activeCandidate(w).confirmed,false);assert.equal(w.structure.confirmed,false);});
+test('30 R01 不得从未重新确认结构的 P2 进入 P4',()=>{let w=apply(ready(),'STRUCTURE_CHANGE');const r=reduceWorkflow(w,{type:'R01'});assert.equal(r.blocked,true);assert.equal(r.workflow.stage,2);});
+test('31 持仓 R02 被 R03 风险中断后不遗留无法完成的悬挂任务',()=>{let w=apply(ready(),'FILL');w=apply(w,'R02');w=apply(w,'R03');assert.equal(w.stage,6);assert.equal(w.suspension,null);w=apply(w,'RISK_REVIEWED');assert.equal(reduceWorkflow(w,{type:'R02'}).blocked,false);});
+test('32 P0 恢复已有持仓后可继续补录剩余挂单',()=>{let w=initialWorkflow('GC');w=apply(w,'RECOVER_POSITION');w=apply(w,'NAVIGATE',{stage:0});assert.equal(w.stage,0);w=apply(w,'RECOVER_ORDER');assert.equal(w.execution.position,true);assert.equal(w.execution.order,'pending');});
+test('33 多候选切换后保留各自完成阶段的重访证据',()=>{let w=ready();const first=w.activeId;w=apply(w,'ADD_CANDIDATE');w=apply(w,'SELECT_CANDIDATE',{id:first});const r=reduceWorkflow(w,{type:'NAVIGATE',stage:4});assert(r.events.some(e=>e.type==='STAGE_REVISITED'&&e.to===4));});
