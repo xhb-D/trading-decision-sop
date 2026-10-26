@@ -1,7 +1,8 @@
 import './style.css';
+import { visibleSymbols, setSymbolVisible, withHiddenSymbols } from './visibility.ts';
 import { displayText, stageName, symbolSummaries, eventName, reasonName } from './presentation.ts';
 import { SYMBOLS, STAGES, BIASES, activeCandidate, hasExposure, directionAllowed, reduceWorkflow, taskView } from './engine.ts';
-import type { Action, SymbolName, Direction } from './engine.ts';
+import type { Action, SymbolName, Direction, Workflow } from './engine.ts';
 import { appendEvent, recordAction, startClock, elapsed, analyze, toCSV, freshAnalytics, buildAnalyticsBundle } from './analytics.ts';
 import type { Filter } from './analytics.ts';
 import { loadWorkspace, saveWorkspace, prepareReopen, importWorkspace, STORAGE_KEY, QUARANTINE_KEY } from './persistence.ts';
@@ -9,19 +10,19 @@ import { loadWorkspace, saveWorkspace, prepareReopen, importWorkspace, STORAGE_K
 const root = document.querySelector<HTMLDivElement>('#app')!;
 const storage = {getItem:(key:string)=>window.localStorage.getItem(key),setItem:(key:string,value:string)=>window.localStorage.setItem(key,value)};
 const loaded = loadWorkspace(storage);
-let state = loaded.workspace;
+let state = withHiddenSymbols(loaded.workspace,loaded.workspace.hiddenSymbols??[]);
 let storageWarning = loaded.warning;
 let reopened = Object.values(state.workflows).map(w=>({symbol:w.symbol,from:w.stage}));
 let expired = prepareReopen(state);
 const sessionId = `usage-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-let clock = startClock(Date.now(), current().waiting, document.visibilityState === 'visible');
+let clock = startClock(Date.now(), current().waiting, document.visibilityState === 'visible' && visibleSymbols(state).length>0);
 let visit = `${Date.now()}`;
 let modal = '';
-let confirming: {message: string; action: () => void} | null = null;
+let confirming: {message: string; action: () => void; symbol: SymbolName | null} | null = null;
 let candidateDirection: Direction = '多头';
 let candidateSetup: 'PB'|'BOF' = 'PB';
 let candidateLabel = '';
-let pointNote = '';
+const pointNotes: Record<SymbolName,string> = {GC:'',CL:'',ES:''};
 let analysisOpen = false;
 let analysisFilter: Filter = {};
 let historyOpen = false;
@@ -40,7 +41,21 @@ function flush(now=Date.now()) {
   if(Object.values(values).some(n=>n>0)) appendEvent(state.analytics,current(),sessionId,now,{type:'DURATION_RECORDED',reason:visit,...values});
   clock.at=now;
 }
-function resetClock() { clock=startClock(Date.now(),current().waiting,document.visibilityState==='visible'); }
+function resetClock() { clock=startClock(Date.now(),current().waiting,document.visibilityState==='visible'&&visibleSymbols(state).length>0); }
+function focusSymbol(symbol: SymbolName) {
+  if(state.activeSymbol===symbol) return;
+  flush(); state.activeSymbol=symbol; visit=`${Date.now()}-${state.analytics.nextId}`; resetClock();
+  appendEvent(state.analytics,current(),sessionId,Date.now(),{type:'STAGE_ENTERED',reason:'SYMBOL_SELECTED'}); persist();
+}
+function changeVisibility(symbol: SymbolName | null, shown: boolean) {
+  flush(); const prior=state.activeSymbol;
+  state=symbol?setSymbolVisible(state,symbol,shown):withHiddenSymbols(state,[]);
+  if(prior!==state.activeSymbol) {
+    visit=`${Date.now()}-${state.analytics.nextId}`;
+    if(visibleSymbols(state).length) appendEvent(state.analytics,current(),sessionId,Date.now(),{type:'STAGE_ENTERED',reason:'VISIBILITY_FOCUS_CHANGED'});
+  }
+  resetClock(); persist(); render();
+}
 function startUsage() {
   for(const item of reopened) {
     const w=state.workflows[item.symbol];
@@ -48,6 +63,7 @@ function startUsage() {
   }
   reopened=[];
   appendEvent(state.analytics,current(),sessionId,Date.now(),{type:'SESSION_STARTED',reason:'BROWSER_OPEN'});
+  if(!visibleSymbols(state).length) return;
   if(!state.analytics.events.some(e=>e.taskId===current().taskId&&e.type==='TASK_STARTED')) appendEvent(state.analytics,current(),sessionId,Date.now(),{type:'TASK_STARTED',reason:'RECOVERY_TASK'});
   appendEvent(state.analytics,current(),sessionId,Date.now(),{type:'STAGE_ENTERED',reason:'RESTORED_SNAPSHOT'});
 }
@@ -63,15 +79,15 @@ function dispatch(action: Action) {
   if(before.stage!==result.workflow.stage || before.taskId!==result.workflow.taskId) visit=`${now}-${state.analytics.nextId}`;
   resetClock(); modal=''; confirming=null; persist(); render();
 }
-function confirm(message: string, action: () => void) { uiClick('UI_OPEN_CONFIRMATION'); confirming={message,action}; modal='confirm'; render(); }
+function confirm(message: string, action: () => void, scoped=true) { if(scoped)uiClick('UI_OPEN_CONFIRMATION'); confirming={message,action,symbol:scoped?state.activeSymbol:null}; modal='confirm'; render(); }
 function button(label: string, command: string, style='', value='', disabled=false) {
   return `<button type="button" class="${style}" data-command="${command}"${value?` data-value="${esc(value)}"`:''}${disabled?' disabled':''}>${displayText(label)}</button>`;
 }
 function options(values: readonly string[], selected: string, command: string, field='') {
   return `<div class="segments">${values.map(v=>`<button type="button" class="chip ${selected===v?'selected':''}" data-command="${command}" data-value="${esc(v)}" ${field?`data-field="${field}"`:''} aria-pressed="${selected===v}">${esc(v)}</button>`).join('')}</div>`;
 }
-function stageControls() {
-  const w=current(), c=activeCandidate(w), e=w.execution;
+function stageControls(w: Workflow) {
+  const c=activeCandidate(w), e=w.execution;
   if(w.needsReconcile) return `<div class="recovery-context">${hasExposure(w)?`<p class="risk-text">保存记录：${e.position?'有持仓':''} ${e.order!=='none'?'有未成交委托':''}。先到真实平台核对。</p>`:'<p>检查交易平台持仓与挂单；确认后恢复保存的流程。</p>'}</div><div class="actions">${button('已核对平台，记录一致','RECONCILE','primary')}${button('发现已有持仓','RECOVER_POSITION')}${button('发现已有挂单','RECOVER_ORDER')}</div>`;
   if(e.exitRequired) return `<p class="risk-text">逻辑失效已由你确认。请在平台执行平仓，并撤销剩余挂单。</p><div class="actions">${button('平台已确认平仓','exit-confirm','danger')}${e.order!=='none'?button('平台已确认撤单','cancel-confirm'):''}</div>`;
   if(e.order==='cancelRequested') return `<p class="risk-text">撤单尚未确认。看板不会代替平台执行；若期间成交，请按实际结果记录。</p><div class="actions">${button('平台已确认撤单','cancel-confirm','primary')}${button('已全部成交','FILL')}${button('已部分成交','PARTIAL_FILL')}${e.position?button('原逻辑失效点已触及','point-touched','danger'):''}</div>`;
@@ -83,7 +99,7 @@ function stageControls() {
     case 4:return `<div class="setup-line"><span>${esc(c?.label)}</span><b>${c?.direction} ${c?.setup}</b><span>位置已到位 · 人工观察中</span></div><div class="actions">${button('Setup 已确认 → 入场检查','CONFIRM_SETUP','primary')}${button(w.waiting?'恢复判断':'继续等待','wait')}${button('Setup 已失效','invalidate-setup')}${button('位置已失效','invalidate-location','subtle danger-text')}</div>`;
     case 5:
       if(e.order!=='none') return `<div class="actions">${button('已全部成交','FILL','primary')}${button('已部分成交','PARTIAL_FILL')}${button('原交易理由失效','reason-invalid','danger')}${button('申请撤销委托','REQUEST_CANCEL')}${button('平台已确认撤单','cancel-confirm')}</div>`;
-      return `<div class="entry-checks">${button(`${e.riskConfirmed?'✓':'○'} 已检查总体风险及订单冲突`,'CONFIRM_RISK',e.riskConfirmed?'checked':'')}${button(`${e.invalidationConfirmed?'✓':'○'} 入场前已确定逻辑失效点`,'CONFIRM_POINT',e.invalidationConfirmed?'checked':'')}<details><summary>可选：记录原逻辑失效点</summary><input id="point-note" value="${esc(pointNote)}" maxlength="120" placeholder="价格或简短描述；可留空" aria-label="原逻辑失效点备注"><small>仅在首次确认时保存，进入委托后不能放宽。</small></details></div><div class="actions">${button('已提交委托，等待成交','PLACE_PENDING','primary')}${button('平台已确认成交','FILL')}${button('平台已部分成交','PARTIAL_FILL')}${button('入场条件失效','reason-invalid','subtle danger-text')}</div><p class="micro">这是人工状态记录。是否已成交，以真实交易平台为准。</p>`;
+      return `<div class="entry-checks">${button(`${e.riskConfirmed?'✓':'○'} 已检查总体风险及订单冲突`,'CONFIRM_RISK',e.riskConfirmed?'checked':'')}${button(`${e.invalidationConfirmed?'✓':'○'} 入场前已确定逻辑失效点`,'CONFIRM_POINT',e.invalidationConfirmed?'checked':'')}<details><summary>可选：记录原逻辑失效点</summary><input id="point-note-${w.symbol}" data-point-symbol="${w.symbol}" value="${esc(pointNotes[w.symbol])}" maxlength="120" placeholder="价格或简短描述；可留空" aria-label="${w.symbol} 原逻辑失效点备注"><small>仅在首次确认时保存，进入委托后不能放宽。</small></details></div><div class="actions">${button('已提交委托，等待成交','PLACE_PENDING','primary')}${button('平台已确认成交','FILL')}${button('平台已部分成交','PARTIAL_FILL')}${button('入场条件失效','reason-invalid','subtle danger-text')}</div><p class="micro">这是人工状态记录。是否已成交，以真实交易平台为准。</p>`;
     case 6:return `<div class="holding-strip"><span>原逻辑失效点</span><b>${e.originalPoint?esc(e.originalPoint):e.invalidationConfirmed?'入场前已确认':'请沿用平台原计划'}</b><small>不可事后放宽 · 无实时监测</small></div><div class="actions">${button('原逻辑失效点已触及','point-touched','danger')}${button('按既定计划离场','REQUEST_EXIT')}${button('平台已确认平仓','exit-confirm')}${e.order!=='none'?button('撤销未成交部分','REQUEST_CANCEL'):''}${button(w.waiting?'恢复管理':'继续持有 / 等待','wait')}</div>`;
     default:return '';
   }
@@ -103,31 +119,40 @@ function dialogHTML() {
   if(modal==='bias') { title='更新当前有效 Bias'; body=`<p>人工确认后只清理受影响的下游计划；不会根据 Setup 推断 Bias。</p>${options(BIASES,current().bias,'bias')}<div class="actions">${button('返回','close-modal')}</div>`; }
   if(modal==='confirm') { title='请确认这次更新'; body=`<p>${esc(displayText(confirming?.message??''))}</p><div class="actions">${button('确认','confirm-yes','primary')}${button('返回','close-modal')}</div>`; }
   if(modal==='data') { title='本地数据与备份'; body=`<p>工作状态与使用日志仅保存在此浏览器。与原日内看板使用不同存储键。</p><div class="data-options">${button('导出完整 JSON 备份','export-workspace','primary')}<label class="file-button">导入 JSON 备份<input type="file" id="import-file" accept="application/json,.json"></label>${button('导出损坏原文（若存在）','export-damaged')}</div><p class="micro">导入会先验证并保留导入前备份。有真实敞口记录时禁止覆盖。浏览器清理站点数据将删除本地内容，请定期导出。</p>`; }
-  return `<div class="modal-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="dialog-title" class="dialog"><header><h2 id="dialog-title">${title}</h2>${button('×','close-modal','icon')}</header>${body}</section></div>`;
+  return `<div class="modal-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="dialog-title" class="dialog"><header><h2 id="dialog-title">${(['candidate','events','bias'].includes(modal)||(modal==='confirm'&&confirming?.symbol))?`${confirming?.symbol??state.activeSymbol} · `:''}${title}</h2>${button('×','close-modal','icon')}</header>${body}</section></div>`;
+}
+function workflowHTML(w: Workflow) {
+  const c=activeCandidate(w),v=taskView(w);
+  return `<section id="workflow-${w.symbol}" class="instrument-workflow ${state.activeSymbol===w.symbol?'focused':''}" data-workflow-symbol="${w.symbol}" aria-label="${w.symbol} 完整决策流程"><header class="instrument-heading"><h2>${w.symbol} <span>决策流程</span></h2><span>${stageName(w.stage)}</span></header>${expired.includes(w.symbol)?`<div class="banner">${w.symbol} 快照可能过期（跨日或离开超过 8 小时）。${button('新交易时段，重新读图','reread')}${button('已核对，快照仍有效','keep-snapshot')}</div>`:''}
+  <nav class="progress" aria-label="${w.symbol} 七步决策流程">${STAGES.map((s,i)=>`<button data-command="navigate" data-value="${i}" class="${w.stage===i?'current':''}" ${w.stage===i?'aria-current="step"':''}><b>${s}</b></button>`).join('')}</nav>
+  <div class="workspace"><section class="task-card ${v.tone}" aria-label="${w.symbol} 当前任务"><div class="task-heading"><span class="stage-label">${stageName(w.stage)}</span><span class="status-tag">${w.waiting?'等待市场':v.tone==='danger'?'优先处理风险':v.tone==='warning'?'需要人工核对':'可继续判断'}</span></div>${w.suspension?`<div class="suspended">↩ 已暂存：${stageName(w.suspension.stage)} · 完成局部更新后检查恢复</div>`:''}<div class="task-focus"><div class="eyebrow">现在只需要</div><h2>${esc(displayText(v.title))}</h2>${c?.valid?`<p>${esc(c.label)} <span> / ${c.direction} / ${c.setup}</span></p>`:''}</div><div class="routes"><div><span>下一触发</span><b>${esc(displayText(v.next))}</b></div><div><span>失效去向</span><b>${esc(displayText(v.fallback))}</b></div></div><div class="controls">${stageControls(w)}</div>${w.notice?`<div class="notice" role="status">${esc(displayText(w.notice))}</div>`:''}</section>
+  <aside class="sidebar"><section class="candidate-panel"><header><h2>候选位置 <span>${w.candidates.filter(c=>c.valid).length}</span></h2>${button('＋','open-candidate','icon')}</header>${w.candidates.some(c=>c.valid)?w.candidates.filter(c=>c.valid).map(item=>item.id===w.activeId?`<div class="candidate active"><span class="mini-label">当前观察</span><b>${esc(item.label)}</b><p>${item.direction} · ${item.setup}<span>${item.confirmed?'Setup 已确认':item.arrived?'位置已到位':'等待到位'}</span></p></div>`:`<details class="candidate"><summary>${esc(item.label)} <span>${item.direction} ${item.setup}</span></summary><p>${item.confirmed?'Setup 已确认':item.arrived?'位置已到位':'等待到位'}</p><div class="actions">${button('切换观察','select-candidate','',item.id)}${button('此位置失效','invalidate-other','subtle danger-text',item.id)}</div></details>`).join(''):'<div class="empty-state">尚无候选位置<br><small>确认合格位置后再加入</small></div>'}</section><button class="event-entry" data-command="open-events"><span>＋</span><div><b>发生新事件</b><small>快速路由 / 局部更新</small></div><span>↗</span></button><div class="local-note">人工判断 · 本地保存<br>无行情识别 · 无自动执行</div></aside></div></section>`;
 }
 function render() {
-  const w=current(),c=activeCandidate(w),v=taskView(w);
+  const w=current(),visible=visibleSymbols(state);
   document.documentElement.dataset.theme=state.theme;
-  root.innerHTML=`<main class="shell"><header class="page-header"><div><div class="eyebrow">TRADING DECISION / SOP V1</div><h1>交易决策导航</h1><p>当前只做一件事</p></div><div class="header-tools">${button(state.theme==='dark'?'☀ 浅色':'☾ 深色','theme')}${button('备份 / 导入','open-data')}<span class="save-state">${storageWarning?'保存需关注':'● 本地已保存'}</span></div></header>
+  root.innerHTML=`<main class="shell"><header class="page-header"><div><div class="eyebrow">TRADING DECISION / SOP V1</div><h1>交易决策导航</h1><p>每个品种，当前只做一件事</p></div><div class="header-tools">${button(state.theme==='dark'?'☀ 浅色':'☾ 深色','theme')}${button('备份 / 导入','open-data')}<span class="save-state">${storageWarning?'保存需关注':'● 本地已保存'}</span></div></header>
   ${readOnly?'<div class="banner danger-text">另一标签页已更新工作区，本页暂停写入。请刷新后恢复，避免相互覆盖。</div>':''}
   ${storageWarning?`<div class="banner" role="alert">${esc(displayText(storageWarning))}</div>`:''}
-  ${expired.includes(w.symbol)?`<div class="banner">${w.symbol} 快照可能过期（跨日或离开超过 8 小时）。${button('新交易时段，重新读图','reread')}${button('已核对，快照仍有效','keep-snapshot')}</div>`:''}
-  <section class="symbol-overview" aria-label="各品种状态总览">${symbolSummaries(state.workflows,state.activeSymbol).map(summary=>`<button class="symbol-state ${summary.selected?'selected':''}" data-command="symbol" data-value="${summary.symbol}" aria-pressed="${summary.selected}" aria-label="查看 ${summary.symbol} 当前任务"><span class="symbol-state-header"><strong>${summary.symbol}</strong><span>${summary.stage}</span>${summary.selected?'<small>正在操作</small>':''}</span><span class="symbol-state-fields"><span><small>有效 Bias</small><b>${esc(summary.bias)}</b></span><span><small>执行状态</small><b class="${summary.risk?'risk-text':''}">${summary.execution}</b></span></span><span class="symbol-structure"><small>价格结构</small><b>${esc(summary.structure)}</b></span><span class="symbol-task"><small>${summary.attention||'当前任务'}</small><b>${esc(summary.task)}</b></span></button>`).join('')}</section>
-  <nav class="progress" aria-label="决策环节">${STAGES.map((s,i)=>`<button data-command="navigate" data-value="${i}" class="${w.stage===i?'current':''}" ${w.stage===i?'aria-current="step"':''}><b>${s}</b></button>`).join('')}</nav>
-  <div class="workspace"><section class="task-card ${v.tone}" aria-label="当前任务"><div class="task-heading"><span class="stage-label">${stageName(w.stage)}</span><span class="status-tag">${w.waiting?'等待市场':v.tone==='danger'?'优先处理风险':v.tone==='warning'?'需要人工核对':'可继续判断'}</span></div>${w.suspension?`<div class="suspended">↩ 已暂存${stageName(w.suspension.stage)} · 完成局部更新后检查恢复</div>`:''}<div class="task-focus"><div class="eyebrow">现在只需要</div><h2>${esc(displayText(v.title))}</h2>${c?.valid?`<p>${esc(c.label)} <span> / ${c.direction} / ${c.setup}</span></p>`:''}</div><div class="routes"><div><span>下一触发</span><b>${esc(displayText(v.next))}</b></div><div><span>失效去向</span><b>${esc(displayText(v.fallback))}</b></div></div><div class="controls">${stageControls()}</div>${w.notice?`<div class="notice" role="status">${esc(displayText(w.notice))}</div>`:''}</section>
-  <aside class="sidebar"><section class="candidate-panel"><header><h2>候选位置 <span>${w.candidates.filter(c=>c.valid).length}</span></h2>${button('＋','open-candidate','icon')}</header>${w.candidates.some(c=>c.valid)?w.candidates.filter(c=>c.valid).map(item=>item.id===w.activeId?`<div class="candidate active"><span class="mini-label">当前观察</span><b>${esc(item.label)}</b><p>${item.direction} · ${item.setup}<span>${item.confirmed?'Setup 已确认':item.arrived?'位置已到位':'等待到位'}</span></p></div>`:`<details class="candidate"><summary>${esc(item.label)} <span>${item.direction} ${item.setup}</span></summary><p>${item.confirmed?'Setup 已确认':item.arrived?'位置已到位':'等待到位'}</p><div class="actions">${button('切换观察','select-candidate','',item.id)}${button('此位置失效','invalidate-other','subtle danger-text',item.id)}</div></details>`).join(''):'<div class="empty-state">尚无候选位置<br><small>确认合格位置后再加入</small></div>'}</section><button class="event-entry" data-command="open-events"><span>＋</span><div><b>发生新事件</b><small>快速路由 / 局部更新</small></div><span>↗</span></button><div class="local-note">人工判断 · 本地保存<br>无行情识别 · 无自动执行</div></aside></div>
+  <div class="visibility-tools" aria-label="品种显示设置"><span>显示品种 ${visible.length} / ${SYMBOLS.length}</span>${SYMBOLS.filter(symbol=>!visible.includes(symbol)).map(symbol=>{const summary=symbolSummaries(state.workflows,state.activeSymbol).find(s=>s.symbol===symbol)!;return `<span class="hidden-instrument">${button(`显示 ${symbol}`,'show-symbol','',symbol)}${summary.risk?`<b class="risk-text">${symbol} ${summary.execution}</b>`:''}</span>`;}).join('')}${visible.length<SYMBOLS.length?button('显示全部','show-all','subtle'):''}</div>
+  ${visible.length?`<section class="symbol-overview" aria-label="各品种状态总览" style="--instrument-count:${visible.length}">${symbolSummaries(state.workflows,state.activeSymbol).filter(summary=>visible.includes(summary.symbol)).map(summary=>`<article class="symbol-state ${summary.selected?'selected':''}"><div class="symbol-state-header"><button class="symbol-select" data-command="symbol" data-value="${summary.symbol}" aria-label="定位 ${summary.symbol} 流程"><strong>${summary.symbol}</strong><span>${summary.stage}</span></button>${button('隐藏','hide-symbol','hide-symbol',summary.symbol)}</div><span class="symbol-state-fields"><span><small>有效 Bias</small><b>${esc(summary.bias)}</b></span><span><small>执行状态</small><b class="${summary.risk?'risk-text':''}">${summary.execution}</b></span></span><span class="symbol-structure"><small>价格结构</small><b>${esc(summary.structure)}</b></span><span class="symbol-task"><small>${summary.attention||'当前任务'}</small><b>${esc(summary.task)}</b></span></article>`).join('')}</section>`:'<div class="all-hidden">所有品种已隐藏。点击上方“显示”即可恢复，原有任务与交易记录均保留。</div>'}
+  <section class="workflow-grid count-${visible.length}" aria-label="所有显示品种的完整流程" style="--instrument-count:${visible.length}">${visible.map(symbol=>workflowHTML(state.workflows[symbol])).join('')}</section>
   <section class="foldout"><button class="foldout-title" aria-expanded="${analysisOpen}" data-command="toggle-analysis"><span>${analysisOpen?'−':'＋'} SOP 使用分析</span><small>零额外操作 · 本地统计</small></button>${analysisHTML()}</section>
-  <section class="foldout"><button class="foldout-title" aria-expanded="${historyOpen}" data-command="toggle-history"><span>${historyOpen?'−':'＋'} 事件历史</span><small>最近 40 条路由事件</small></button>${historyOpen?`<div class="history">${state.analytics.events.filter(x=>x.symbol===w.symbol&&!['USER_ACTION','DURATION_RECORDED'].includes(x.type)).slice(-40).reverse().map(x=>`<p><time>${new Date(x.at).toLocaleTimeString('zh-CN',{hour12:false})}</time><span>${stageName(x.from)} → ${stageName(x.to)}</span><b>${eventName(x.type)}</b><small>${esc(reasonName(x.reason))}</small></p>`).join('')||'暂无事件'}</div>`:''}</section>
+  <section class="foldout"><button class="foldout-title" aria-expanded="${historyOpen}" data-command="toggle-history"><span>${historyOpen?'−':'＋'} 事件历史 · ${state.activeSymbol}</span><small>该品种最近 40 条路由事件</small></button>${historyOpen?`<div class="history">${state.analytics.events.filter(x=>x.symbol===w.symbol&&!['USER_ACTION','DURATION_RECORDED'].includes(x.type)).slice(-40).reverse().map(x=>`<p><time>${new Date(x.at).toLocaleTimeString('zh-CN',{hour12:false})}</time><span>${stageName(x.from)} → ${stageName(x.to)}</span><b>${eventName(x.type)}</b><small>${esc(reasonName(x.reason))}</small></p>`).join('')||'暂无事件'}</div>`:''}</section>
   <section class="foldout"><button class="foldout-title" aria-expanded="${sopOpen}" data-command="toggle-sop"><span>${sopOpen?'−':'＋'} 完整 SOP 速查</span><small>决策环节 / 事件与更新</small></button>${sopOpen?`<div class="sop"><p>${STAGES.join(' → ')}</p><p>每个机会独立确定方向；不得违背有效 Bias。中性须人工确认权限。Setup、级别生长与假突破事件不自动改变 Bias。</p><p>合格位置到位 → Setup 确认；级别生长 → 局部更新结构并恢复有效任务；对应级别假突破 → 空仓更新观察、有敞口优先风险；更高级别假突破 → 重新评估位置与方向权限，不能直接入场。</p><p>无实质变化则维持任务；局部变化只更新受影响下游；重新读图时保留真实持仓与委托。未成交理由失效 → 平台撤单并核对；部分成交拆分管理；原逻辑失效点触及 → 按既定规则平仓并核对。</p></div>`:''}</section><footer>Trading Decision SOP · 独立工作区 · V1.0 <span>决定来自你，下一步交给流程。</span></footer></main>${dialogHTML()}`;
   if(modal) { const d=root.querySelector<HTMLElement>('[role=dialog]'); const first=d?.querySelector<HTMLElement>('button,input'); first?.focus(); }
 }
 function download(filename: string, content: string, type='application/json') {
   const url=URL.createObjectURL(new Blob([content],{type})); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+root.addEventListener('focusin',event=>{
+  const el=event.target as HTMLElement;
+  if(el.dataset.pointSymbol) focusSymbol(el.dataset.pointSymbol as SymbolName);
+});
 root.addEventListener('input',event=>{
   const el=event.target as HTMLInputElement;
   if(el.id==='candidate-label') candidateLabel=el.value;
-  if(el.id==='point-note') pointNote=el.value;
+  if(el.dataset.pointSymbol) pointNotes[el.dataset.pointSymbol as SymbolName]=el.value;
 });
 root.addEventListener('change',async event=>{
   const el=event.target as HTMLInputElement;
@@ -137,7 +162,7 @@ root.addEventListener('change',async event=>{
   if(el.id==='import-file'&&el.files?.[0]) {
     try {
       const next=importWorkspace(state,await el.files[0].text());
-      confirm('验证通过。将保留当前副本并替换本地工作区；此操作不改变真实平台持仓或委托。',()=>{flush();persist();state=next;expired=prepareReopen(state);resetClock();modal='';confirming=null;startUsage();persist();render();});
+      confirm('验证通过。将保留当前副本并替换本地工作区；此操作不改变真实平台持仓或委托。',()=>{flush();persist();state=withHiddenSymbols(next,next.hiddenSymbols??[]);expired=prepareReopen(state);resetClock();modal='';confirming=null;startUsage();persist();render();},false);
     } catch(error) { storageWarning=`导入未执行：${(error as Error).message}`; render(); }
   }
 });
@@ -145,8 +170,13 @@ root.addEventListener('click',event=>{
   const target=(event.target as HTMLElement).closest<HTMLButtonElement>('[data-command]'); if(!target||target.disabled) return;
   const cmd=target.dataset.command!,value=target.dataset.value??'';
   if(readOnly) return;
+  const owner=target.closest<HTMLElement>('[data-workflow-symbol]')?.dataset.workflowSymbol as SymbolName|undefined;
+  if(owner) focusSymbol(owner);
   switch(cmd) {
-    case 'symbol': flush(); persist(); state.activeSymbol=value as SymbolName; resetClock(); visit=`${Date.now()}`; appendEvent(state.analytics,current(),sessionId,Date.now(),{type:'STAGE_ENTERED',reason:'SYMBOL_SELECTED'}); persist(); render(); break;
+    case 'symbol': focusSymbol(value as SymbolName); render(); document.getElementById(`workflow-${value}`)?.scrollIntoView({block:'start'}); break;
+    case 'hide-symbol':changeVisibility(value as SymbolName,false);break;
+    case 'show-symbol':changeVisibility(value as SymbolName,true);break;
+    case 'show-all':changeVisibility(null,true);break;
     case 'theme': state.theme=state.theme==='dark'?'light':'dark';persist();render();break;
     case 'open-events':uiClick('UI_OPEN_EVENTS');modal='events';render();break;
     case 'open-candidate':uiClick('UI_OPEN_CANDIDATE');modal='candidate';candidateLabel='';render();break;
@@ -174,8 +204,8 @@ root.addEventListener('click',event=>{
     case 'exit-confirm':confirm('你已在真实交易平台确认该持仓已全部平仓？剩余挂单仍须另行撤销核对。',()=>dispatch({type:'EXIT_CONFIRMED'}));break;
     case 'reread':confirm('开始新交易时段并重新读图？分析快照与候选失效，真实持仓及挂单保留并要求核对。',()=>{expired=expired.filter(s=>s!==state.activeSymbol);dispatch({type:'U2'});});break;
     case 'keep-snapshot':uiClick('UI_SNAPSHOT_REVIEWED');expired=expired.filter(s=>s!==state.activeSymbol);current().lastSeen=Date.now();persist();render();break;
-    case 'confirm-yes': {const action=confirming?.action;confirming=null;action?.();break;}
-    case 'CONFIRM_POINT':dispatch({type:'CONFIRM_POINT',value:pointNote});break;
+    case 'confirm-yes': {const pending=confirming;confirming=null;if(pending){if(pending.symbol)focusSymbol(pending.symbol);pending.action();}break;}
+    case 'CONFIRM_POINT':dispatch({type:'CONFIRM_POINT',value:pointNotes[state.activeSymbol]});break;
     case 'toggle-analysis':flush();analysisOpen=!analysisOpen;render();break;
     case 'toggle-history':historyOpen=!historyOpen;render();break;
     case 'toggle-sop':sopOpen=!sopOpen;render();break;
@@ -184,7 +214,7 @@ root.addEventListener('click',event=>{
     case 'export-analytics':flush();download('sop-usage-analysis.json',JSON.stringify({version:1,definition:'Active estimate excludes waiting, hidden time and idle over 30 seconds; incomplete retained tasks excluded from averages.',...analyze(state.analytics,analysisFilter)},null,2));break;
     case 'export-csv':flush();download('sop-usage-events.csv',toCSV(state.analytics,analysisFilter),'text/csv;charset=utf-8');break;
     case 'export-damaged': {const raw=storage.getItem(QUARANTINE_KEY);if(raw)download('sop-damaged-original.txt',raw,'text/plain');else{storageWarning='没有隔离的损坏原文。';render();}break;}
-    case 'clear-analytics':confirm('清空本地使用日志？交易状态不变。建议先导出 JSON/CSV；此操作会保留清空前本地备用副本。',()=>{flush();persist();state.analytics=freshAnalytics();startUsage();resetClock();modal='';persist();render();});break;
+    case 'clear-analytics':confirm('清空本地使用日志？交易状态不变。建议先导出 JSON/CSV；此操作会保留清空前本地备用副本。',()=>{flush();persist();state.analytics=freshAnalytics();startUsage();resetClock();modal='';persist();render();},false);break;
     default:dispatch({type:cmd as Action['type']});
   }
 });
@@ -201,7 +231,7 @@ document.addEventListener('keydown',event=>{
     const first=nodes[0],last=nodes.at(-1); if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
   }
 });
-document.addEventListener('visibilitychange',()=>{flush();clock.visible=document.visibilityState==='visible';clock.activeUntil=Date.now()+30000;persist();});
+document.addEventListener('visibilitychange',()=>{flush();clock.visible=document.visibilityState==='visible'&&visibleSymbols(state).length>0;clock.activeUntil=Date.now()+30000;persist();});
 window.addEventListener('pagehide',()=>{flush();persist();});
 window.addEventListener('storage',event=>{if(event.key===STORAGE_KEY){readOnly=true;render();}});
 setInterval(()=>{if(!readOnly){flush();persist();}},15000);

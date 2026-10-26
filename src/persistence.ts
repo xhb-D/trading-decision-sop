@@ -5,10 +5,10 @@ import type { Analytics } from './analytics.ts';
 export const STORAGE_KEY = 'trading-decision-sop:v1:workspace';
 export const BACKUP_KEY = 'trading-decision-sop:v1:backup';
 export const QUARANTINE_KEY = 'trading-decision-sop:v1:damaged';
-export interface Workspace { version: 1; activeSymbol: SymbolName; theme: 'dark' | 'light'; workflows: Record<SymbolName, Workflow>; analytics: Analytics; savedAt: number; }
+export interface Workspace { version: 1; activeSymbol: SymbolName; theme: 'dark' | 'light'; hiddenSymbols?: SymbolName[]; workflows: Record<SymbolName, Workflow>; analytics: Analytics; savedAt: number; }
 export interface StorageLike { getItem(k: string): string | null; setItem(k: string, v: string): void; }
 export function freshWorkspace(now = Date.now()): Workspace {
-  return { version: 1, activeSymbol: 'GC', theme: 'dark', workflows: Object.fromEntries(SYMBOLS.map(s=>[s,initialWorkflow(s,now)])) as Record<SymbolName,Workflow>, analytics: freshAnalytics(), savedAt: now };
+  return { version: 1, activeSymbol: 'GC', theme: 'dark', hiddenSymbols: [], workflows: Object.fromEntries(SYMBOLS.map(s=>[s,initialWorkflow(s,now)])) as Record<SymbolName,Workflow>, analytics: freshAnalytics(), savedAt: now };
 }
 function fail(message: string): never { throw new Error(message); }
 const obj = (x: unknown): x is Record<string, any> => !!x && typeof x==='object' && !Array.isArray(x);
@@ -18,6 +18,7 @@ const bounded = (s: unknown, limit=160) => typeof s==='string' && s.length<=limi
 export function validateWorkspace(value: unknown): Workspace {
   if (!obj(value) || value.version !== 1) fail('不支持的数据版本，未执行覆盖');
   if (!SYMBOLS.includes(value.activeSymbol) || !['dark','light'].includes(value.theme) || !obj(value.workflows)) fail('工作区格式错误');
+  if(value.hiddenSymbols!==undefined&&(!Array.isArray(value.hiddenSymbols)||!value.hiddenSymbols.every((s:unknown)=>SYMBOLS.includes(s as SymbolName))||new Set(value.hiddenSymbols).size!==value.hiddenSymbols.length)) fail('品种显示设置损坏');
   for (const symbol of SYMBOLS) {
     const w = value.workflows[symbol];
     if (!obj(w)||w.symbol!==symbol||!stage(w.stage)||!BIASES.includes(w.bias)||!bounded(w.taskId)||!Array.isArray(w.candidates)||w.candidates.length>1000) fail('流程数据损坏');
@@ -57,7 +58,7 @@ export function validateWorkspace(value: unknown): Workspace {
     lastId=e.id;
   }
   if (a.nextId<=lastId||!Number.isFinite(value.savedAt)) fail('版本序列或保存时间错误');
-  return structuredClone(value) as Workspace;
+  return {...structuredClone(value),hiddenSymbols:[...(value.hiddenSymbols??[])]} as Workspace;
 }
 export function saveWorkspace(storage: StorageLike, workspace: Workspace, now=Date.now()): void {
   workspace.savedAt=now;

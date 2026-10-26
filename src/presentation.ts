@@ -50,7 +50,7 @@ const reasons: Record<string,string> = {
   RISK_REVIEWED:'已核对风险，沿用原失效点', WAIT:'继续等待', WAKE:'恢复当前判断',
   NAVIGATE:'人工选择环节', STRUCTURE_CHANGE:'母结构发生变化',
   BROWSER_OPEN:'打开看板', RESTORED_SNAPSHOT:'恢复已有快照', SYMBOL_SELECTED:'切换品种',
-  RECOVERY_TASK:'恢复现场任务', REOPEN_PLATFORM_RECONCILIATION:'重新打开后核对真实平台',
+  RECOVERY_TASK:'恢复现场任务', VISIBILITY_FOCUS_CHANGED:'显示品种调整后继续当前任务', REOPEN_PLATFORM_RECONCILIATION:'重新打开后核对真实平台',
   USER_RETURN_REVIEW_REQUIRED:'主动返回上游，待人工复核', USER_NAVIGATION:'人工选择环节',
   PLATFORM_RECONCILED:'平台记录已核对', SCENE_RESTORED:'现场恢复完成', POSITION_RECOVERED:'已补录实际持仓',
   ORDER_RECOVERED:'已补录实际挂单', BIAS_CONFIRMED:'Bias 已确认', BIAS_PERMISSION_CHANGED:'Bias 方向权限变化',

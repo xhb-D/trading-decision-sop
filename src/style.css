@@ -19,3 +19,36 @@
 .progress button{gap:0}
 @media(max-width:760px){.symbol-overview{gap:7px}.symbol-state{padding:10px}.symbol-state-header{gap:5px}.symbol-state-header>strong{font-size:18px}.symbol-state-header>small{font-size:8px}.symbol-state-fields b{font-size:11px}}
 @media(max-width:620px){.symbol-overview{grid-template-columns:1fr;gap:7px}.symbol-state{padding:9px 12px}.symbol-state-header{margin-bottom:5px}.symbol-state-fields{grid-template-columns:1fr 1fr;margin-bottom:3px}.symbol-state-fields>span{display:flex;align-items:baseline;gap:8px}.symbol-state-fields small{font-size:9px;white-space:nowrap}.symbol-state-fields b{font-size:11px}.symbol-state-header>span{font-size:10px}.symbol-task{padding-top:4px;margin-top:3px}.symbol-task b{font-size:10px}}
+
+/* Visible instruments own independent complete workflow panels. */
+.visibility-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:11px;color:var(--muted)}
+.visibility-tools>span:first-child{margin-right:auto}.visibility-tools button{font-size:11px;min-height:30px;padding:4px 9px}
+.hidden-instrument{display:flex;align-items:center;gap:6px}.hidden-instrument b{font-size:10px;font-weight:500}
+.all-hidden{padding:30px 16px;text-align:center;border:1px dashed var(--line);border-radius:9px;color:var(--muted);font-size:13px}
+.symbol-overview{grid-template-columns:repeat(var(--instrument-count,3),minmax(0,1fr))}
+.symbol-state{cursor:default}.symbol-state:hover{background:var(--panel)}
+.symbol-select{display:flex;align-items:center;gap:9px;border:0;background:transparent;min-height:26px;padding:0;text-align:left;color:var(--text)}
+.symbol-select strong{font-size:20px;line-height:1.2}.symbol-select span{font-size:11px;color:var(--muted)}
+.symbol-state-header .hide-symbol{margin-left:auto;font-size:10px;min-height:27px;padding:3px 8px;background:transparent}
+.workflow-grid{display:grid;grid-template-columns:repeat(var(--instrument-count,3),minmax(0,1fr));gap:14px;margin-top:18px;align-items:start}
+.workflow-grid.count-0{display:none}.instrument-workflow{min-width:0;scroll-margin-top:16px}
+.instrument-heading{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:0;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.instrument-heading h2{font-size:18px}.instrument-heading h2 span{font-size:12px;color:var(--muted);font-weight:450}
+.instrument-heading>span{font-size:10px;color:var(--accent)}
+.instrument-workflow .banner{margin-top:10px}.instrument-workflow .progress{padding:10px 0 12px}
+.workflow-grid:not(.count-1) .progress{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.workflow-grid:not(.count-1) .progress button{font-size:10px;min-height:30px;padding:5px 2px}
+.workflow-grid:not(.count-1) .workspace{grid-template-columns:1fr;gap:10px}
+.workflow-grid:not(.count-1) .task-card{min-height:0}
+.workflow-grid:not(.count-1) .task-heading{padding:13px 15px 0;gap:5px}
+.workflow-grid:not(.count-1) .stage-label{font-size:11px}.workflow-grid:not(.count-1) .status-tag{font-size:9px;padding:2px 5px}
+.workflow-grid:not(.count-1) .task-focus{padding:20px 15px 17px}.workflow-grid:not(.count-1) .task-focus h2{font-size:22px}
+.workflow-grid:not(.count-1) .routes{margin:0 15px}.workflow-grid:not(.count-1) .routes div{gap:10px}.workflow-grid:not(.count-1) .routes b{font-size:11px}
+.workflow-grid:not(.count-1) .controls{padding:17px 15px}.workflow-grid:not(.count-1) .actions{gap:6px}.workflow-grid:not(.count-1) .actions button{font-size:11px;padding:7px 9px}
+.workflow-grid:not(.count-1) .sidebar{grid-template-columns:1fr}.workflow-grid:not(.count-1) .local-note{display:none}
+.workflow-grid:not(.count-1) .candidate-panel{padding:11px}.workflow-grid:not(.count-1) .empty-state{padding:8px 0}
+.workflow-grid:not(.count-1) .notice{margin:0 15px 15px}.workflow-grid:not(.count-1) .suspended{margin:12px 15px -4px}
+@media(max-width:1100px){.workflow-grid{grid-template-columns:1fr}.workflow-grid:not(.count-1) .progress{grid-template-columns:repeat(7,minmax(0,1fr))}.workflow-grid:not(.count-1) .workspace{grid-template-columns:minmax(0,1fr) 220px}.workflow-grid:not(.count-1) .sidebar{grid-template-columns:1fr}}
+@media(max-width:760px){.workflow-grid:not(.count-1) .workspace{grid-template-columns:1fr}.workflow-grid:not(.count-1) .sidebar{grid-template-columns:1fr 1fr}.workflow-grid:not(.count-1) .candidate-panel{grid-row:auto}.symbol-select strong{font-size:18px}.symbol-select span{font-size:10px}}
+@media(max-width:620px){.symbol-overview{grid-template-columns:1fr}.visibility-tools{gap:6px}.hidden-instrument{flex-wrap:wrap}.symbol-state-header{margin-bottom:5px}}
+@media(max-width:400px){.workflow-grid:not(.count-1) .sidebar{grid-template-columns:1fr}}
