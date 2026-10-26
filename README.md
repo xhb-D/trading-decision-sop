@@ -79,7 +79,7 @@ npm run analytics:recompute -- /绝对路径/sop-analytics-bundle-v1.json
 
 目标仓库：https://github.com/xhb-D/trading-decision-sop 。目标 Pages 地址：https://xhb-d.github.io/trading-decision-sop/ 。
 
-Vite `base` 固定为 `/trading-decision-sop/`；构建的 HTML 引用该子目录内的 CSS 与 JavaScript。`.github/workflows/pages.yml` 在推送 `main` 时自动运行，也可手动触发。仓库 Pages 使用 GitHub Actions。工作流执行 npm ci、57 项测试、TypeScript 检查和 Vite 构建，再将 dist 上传并发布。源码与部署配置保存在 main，dist 作为 Actions 构建产物发布，不重复提交生成文件。
+Vite `base` 固定为 `/trading-decision-sop/`；构建的 HTML 引用该子目录内的 CSS 与 JavaScript。`.github/workflows/pages.yml` 在推送 `main` 时自动运行，也可手动触发。仓库 Pages 使用 GitHub Actions。工作流执行 npm ci、自动化测试、TypeScript 检查和 Vite 构建，再将 dist 上传并发布。源码与部署配置保存在 main，dist 作为 Actions 构建产物发布，不重复提交生成文件。
 
 开发/preview 访问 URL 包含 `/trading-decision-sop/`。部署后平台 origin 改变，请用本地 JSON 备份迁移；应用仍只使用专属存储键，不会读取同一 Pages 域名下原看板的数据。发布是否成功须以 Actions 结果及线上检查为准；初始 MVP 验证记录仅描述当时的本地交付状态。
 
@@ -88,3 +88,7 @@ Vite `base` 固定为 `/trading-decision-sop/`；构建的 HTML 引用该子目�
 见 `docs/SPEC.md`（业务/技术规范）、`docs/VERIFICATION.md`、`docs/test-results.tap` 和 `docs/screenshots/`。`docs/browser-sop-analytics-bundle-v1.json` 是浏览器模拟 QA 的导出实例，供重算验证，不应导入为真实交易记录。
 
 未接入行情、交易平台和盈亏统计，均为需求明确排除内容。未执行真实账户操作或真实盘中用户验收；没有承诺自动检测止损、成交或撤单。V1 不标记 FROZEN，仍需用户按实际并排盯盘习惯验收。
+
+## 界面更新：三品种总览与中文流程说明
+
+顶部同时展示 GC、CL、ES 的 Bias、结构、执行状态与当前任务，持仓和挂单提示无需切换即可看到。点击卡片只切换下方主任务，三张状态卡始终保留。决策环节、快速事件、历史和提示均以中文名称显示；存储中的事件标识、路由规则与 Analytics Bundle 保持兼容。
